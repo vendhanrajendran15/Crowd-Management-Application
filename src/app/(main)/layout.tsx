@@ -18,10 +18,10 @@ export default function DashboardLayout({
         <SidebarProvider>
           <div className="flex h-screen w-full">
             <SidebarNav />
-            <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="flex flex-1 flex-col overflow-hidden relative">
               <Header />
               <SidebarInset>
-                <main className="flex-1 overflow-y-auto bg-background">
+                <main className="flex-1 overflow-y-auto bg-background relative z-10">
                   {children}
                 </main>
               </SidebarInset>

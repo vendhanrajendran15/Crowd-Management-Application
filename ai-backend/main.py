@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import base64
 import cv2
@@ -6,6 +7,15 @@ import numpy as np
 from ultralytics import YOLO
 
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for development
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 model = YOLO("yolov8n.pt")  # auto-downloads
 
@@ -62,3 +72,7 @@ def analyze(frame: FrameInput):
         "peoplePositions": people,
         "newAlerts": []
     }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8001)

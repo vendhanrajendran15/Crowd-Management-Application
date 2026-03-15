@@ -25,6 +25,7 @@ export interface Camera {
   coordinates: { lat: number; lng: number };
   zone: string;
   streamImage: string;
+  alert?: boolean; // Manual alert status
 }
 
 export interface Incident {

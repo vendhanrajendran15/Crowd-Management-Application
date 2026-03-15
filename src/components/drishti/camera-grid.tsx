@@ -8,7 +8,7 @@ import { useDrishti } from '@/lib/drishti-context';
 import type { Camera, CameraStatus } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { analyzeCameraFrame, AnalyzeCameraFrameOutput } from '@/ai/flows/analyze-camera-frame';
+import { analyzeCameraFrameClient, AnalyzeCameraFrameOutput } from '@/ai/flows/analyze-camera-frame';
 import { saveAnalysisResult, updateCrowdDetectionsFromAnalysis } from '@/lib/firebase-service';
 import { Loader2, Users, AlertCircle } from 'lucide-react';
 
@@ -32,6 +32,7 @@ export default function CameraGrid({ onAnalysisComplete, analysisResults, isAnal
 
   const [loadingState, setLoadingState] = useState<Record<string, boolean>>({});
   const [errorState, setErrorState] = useState<Record<string, string | null>>({});
+  const [lastLoadTime, setLastLoadTime] = useState<Record<string, number>>({});
   const lastAnalysisTime = useRef<Record<string, number>>({});
   const animationFrameId = useRef<number>();
 
@@ -66,7 +67,7 @@ export default function CameraGrid({ onAnalysisComplete, analysisResults, isAnal
     const frameDataUri = canvas.toDataURL('image/jpeg');
   
     try {
-      const result = await analyzeCameraFrame({ frameDataUri });
+      const result = await analyzeCameraFrameClient({ frameDataUri });
       await saveAnalysisResult(eventId, cameraId, result);
       await updateCrowdDetectionsFromAnalysis(eventId, cameraId, result.peoplePositions);
       onAnalysisComplete(cameraId, result, null);
@@ -127,6 +128,58 @@ export default function CameraGrid({ onAnalysisComplete, analysisResults, isAnal
     };
   }, [toast]);
   
+  // Health check for MJPEG streams
+  useEffect(() => {
+    const checkMjpegStreams = () => {
+      cameras.forEach(camera => {
+        const isMjpegStream = camera.streamImage.includes('/videofeed') || 
+                             camera.streamImage.includes('/mjpeg') || 
+                             camera.streamImage.includes('/stream') ||
+                             camera.streamImage.includes('/video');
+        
+        if (isMjpegStream && camera.status === 'Online') {
+          const lastLoad = lastLoadTime[camera.id] || 0;
+          const timeSinceLoad = Date.now() - lastLoad;
+          
+          // If no load in 15 seconds, mark as offline
+          if (timeSinceLoad > 15000 && lastLoad > 0) {
+            console.log(`❌ MJPEG stream health check failed: ${camera.name} - no load in ${timeSinceLoad}ms`);
+            updateCameraStatus(camera.id, 'Offline');
+            setErrorState(prev => ({ ...prev, [camera.id]: 'Stream stopped responding' }));
+          }
+        }
+      });
+    };
+
+    const interval = setInterval(checkMjpegStreams, 5000); // Check every 5 seconds
+    return () => clearInterval(interval);
+  }, [cameras, lastLoadTime, updateCameraStatus]);
+  
+  // Auto-refresh MJPEG streams every 5 seconds
+  useEffect(() => {
+    const refreshMjpegStreams = () => {
+      cameras.forEach(camera => {
+        const isMjpegStream = camera.streamImage.includes('/videofeed') || 
+                             camera.streamImage.includes('/mjpeg') || 
+                             camera.streamImage.includes('/stream') ||
+                             camera.streamImage.includes('/video');
+        
+        if (isMjpegStream && camera.status === 'Online') {
+          const imgElement = document.querySelector(`img[alt="${camera.name}"]`) as HTMLImageElement;
+          if (imgElement) {
+            const currentSrc = imgElement.src;
+            const newSrc = currentSrc.split('?')[0] + '?t=' + Date.now();
+            imgElement.src = newSrc;
+            setLastLoadTime(prev => ({ ...prev, [camera.id]: Date.now() }));
+          }
+        }
+      });
+    };
+
+    const interval = setInterval(refreshMjpegStreams, 5000);
+    return () => clearInterval(interval);
+  }, [cameras]);
+
   useEffect(() => {
     const analysisLoop = () => {
         if (!isAnalysisRunning) {
@@ -156,12 +209,19 @@ export default function CameraGrid({ onAnalysisComplete, analysisResults, isAnal
   }, [isAnalysisRunning, captureFrameAndAnalyze]);
 
   const handleVideoError = useCallback((cameraId: string) => {
+    const camera = cameras.find(c => c.id === cameraId);
+    const streamUrl = camera?.streamImage || '';
+
+    console.error(`Video error for camera ${cameraId}:`, streamUrl);
+    
+    // Update camera status to Offline when stream fails
+    updateCameraStatus(cameraId, 'Offline');
+    
     setErrorState(prev => ({
         ...prev,
-        [cameraId]: "The video failed to load. The source might be an unsupported format, a network error occurred (e.g., CORS, Mixed Content), or the URL is incorrect. Ensure the stream URL is correct and the server is properly configured.",
+        [cameraId]: `Stream failed to load: ${streamUrl}\n\nSince this URL works in your browser, this is a CORS/security issue.\n\nSolutions:\n1. Check browser console (F12) for exact error\n2. Try refreshing the page\n3. Your camera works fine - just browser security blocking it\n4. Consider using a proxy URL as temporary fix\n\nDebug: Check console for detailed error messages.`,
     }));
-    updateCameraStatus(cameraId, 'Alert');
-  }, [updateCameraStatus]);
+  }, [cameras, updateCameraStatus]);
 
   const handleVideoEnded = useCallback(async (camera: Camera) => {
     if (camera.location !== 'Live Stream') return;
@@ -249,20 +309,82 @@ export default function CameraGrid({ onAnalysisComplete, analysisResults, isAnal
         </div>
 
         {/* Other Camera Feeds */}
-        {cameras.map((camera) => (
-          <div key={camera.id} className="group relative">
-            <video
-              id={`video-${camera.id}`}
-              src={camera.streamImage}
-              className="rounded-lg object-cover w-full aspect-video bg-muted"
-              autoPlay
-              muted
-              playsInline
-              loop={camera.location !== 'Live Stream'}
-              crossOrigin="anonymous"
-              onEnded={() => handleVideoEnded(camera)}
-              onError={() => handleVideoError(camera.id)}
-            />
+        {cameras.map((camera) => {
+          // Check if it's an MJPEG stream (ends with common MJPEG paths)
+          const isMjpegStream = camera.streamImage.includes('/videofeed') || 
+                               camera.streamImage.includes('/mjpeg') || 
+                               camera.streamImage.includes('/stream') ||
+                               camera.streamImage.includes('/video');
+          
+          return (
+            <div key={camera.id} className="group relative">
+              {isMjpegStream ? (
+                // Use img tag for MJPEG streams with health monitoring
+                <img
+                  src={camera.streamImage}
+                  alt={camera.name}
+                  className="rounded-lg object-cover w-full aspect-video bg-muted"
+                  onLoad={() => {
+                    console.log(`✅ MJPEG stream loaded: ${camera.streamImage}`);
+                    setErrorState(prev => ({ ...prev, [camera.id]: null }));
+                    updateCameraStatus(camera.id, 'Online');
+                    setLastLoadTime(prev => ({ ...prev, [camera.id]: Date.now() }));
+                  }}
+                  onError={() => {
+                    console.log(`❌ MJPEG stream error: ${camera.streamImage}`);
+                    setErrorState(prev => ({ ...prev, [camera.id]: `Stream failed: ${camera.streamImage}` }));
+                    updateCameraStatus(camera.id, 'Offline');
+                  }}
+                />
+              ) : (
+                // Use video tag for regular video streams
+                <video
+                  id={`video-${camera.id}`}
+                  src={camera.streamImage}
+                  className="rounded-lg object-cover w-full aspect-video bg-muted"
+                  autoPlay
+                  muted
+                  playsInline
+                  loop={camera.zone !== 'Stream'}
+                  crossOrigin="anonymous"
+                  onEnded={() => handleVideoEnded(camera)}
+                  onError={(e) => {
+                    console.error(`Video error for ${camera.id}:`, e);
+                    console.error(`Video src:`, camera.streamImage);
+                    handleVideoError(camera.id);
+                  }}
+                  onLoadStart={() => {
+                    console.log(`Video load start for ${camera.id}:`, camera.streamImage);
+                    setErrorState(prev => ({ ...prev, [camera.id]: null }));
+                    updateCameraStatus(camera.id, 'Online');
+                  }}
+                  onLoadedMetadata={() => {
+                    console.log(`Video metadata loaded for ${camera.id}`);
+                    setErrorState(prev => ({ ...prev, [camera.id]: null }));
+                    updateCameraStatus(camera.id, 'Online');
+                  }}
+                  onCanPlay={() => {
+                    console.log(`Video can play for ${camera.id}`);
+                    setErrorState(prev => ({ ...prev, [camera.id]: null }));
+                    updateCameraStatus(camera.id, 'Online');
+                  }}
+                  onCanPlayThrough={() => {
+                    console.log(`Video can play through for ${camera.id}`);
+                    setErrorState(prev => ({ ...prev, [camera.id]: null }));
+                    updateCameraStatus(camera.id, 'Online');
+                  }}
+                  ref={(el) => {
+                    if (el && !videoRefs.current[camera.id]) {
+                      videoRefs.current[camera.id] = el;
+                      console.log(`Video ref set for ${camera.id}`);
+                    }
+                  }}
+                  // Add these for better CORS and streaming
+                  preload="metadata"
+                  controls={false}
+                  disablePictureInPicture
+                />
+              )}
             {errorState[camera.id] && (
               <div className="absolute inset-0 flex flex-col items-center justify-center rounded-lg bg-black/70 p-4 text-center text-white">
                   <AlertCircle className="h-8 w-8 text-destructive" />
@@ -290,7 +412,8 @@ export default function CameraGrid({ onAnalysisComplete, analysisResults, isAnal
               )}
             </div>
           </div>
-        ))}
+        );
+      })}
       </CardContent>
     </Card>
   );

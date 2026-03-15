@@ -12,6 +12,7 @@ import { Loader2, Pause, Play, RefreshCw, ShieldAlert } from 'lucide-react';
 import CameraAddForm from '@/components/drishti/camera-add-form';
 import CameraGrid from '@/components/drishti/camera-grid';
 import CameraTable from '@/components/drishti/camera-table';
+import CameraMap from '@/components/drishti/camera-map';
 import { useAuth } from '@/lib/auth-context';
 import ProtectedRoute from '@/components/drishti/protected-route';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -85,8 +86,30 @@ export default function CamerasPage() {
     }
   }, [addIncident, addAlert, toast, cameras, eventId]);
 
-    const handleResetAnalysis = async () => {
-    setIsResetting(true);
+    const handleCameraAlert = async (cameraId: string, isAlert: boolean) => {
+    try {
+      // Update camera alert status in Firebase
+      const { updateCamera } = await import('@/lib/firebase-service');
+      const camera = cameras.find(c => c.id === cameraId);
+      if (camera) {
+        await updateCamera(cameraId, { ...camera, alert: isAlert });
+        
+        toast({
+          title: isAlert ? "Alert Set" : "Alert Cleared",
+          description: `${camera.name} alert status updated.`,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to update camera alert:', error);
+      toast({
+        title: "Error",
+        description: "Could not update camera alert status.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleResetAnalysis = async () => {
     try {
       if (eventId) {
         await resetAllAnalysis(eventId);
@@ -132,18 +155,22 @@ export default function CamerasPage() {
             
             <Separator />
 
+            <CameraMap cameras={cameras} onCameraAlert={handleCameraAlert} />
+            
+            <Separator />
+
             <CameraTable />
             
             <Separator />
 
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6">
               <div>
                   <h2 className="font-headline text-xl font-bold">Live Camera Feeds</h2>
                   <p className="text-muted-foreground">
                   Real-time monitoring from all active cameras for this event.
                   </p>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 flex-shrink-0">
                   <Button onClick={() => setIsAnalysisRunning(prev => !prev)} variant="outline">
                       {isAnalysisRunning ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
                       {isAnalysisRunning ? 'Pause Analysis' : 'Resume Analysis'}

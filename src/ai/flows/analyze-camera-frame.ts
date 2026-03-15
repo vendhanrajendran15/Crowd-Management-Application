@@ -1,16 +1,15 @@
-'use server';
-
 export type AnalyzeCameraFrameOutput = {
   crowdCount: number;
   peoplePositions: { x: number; y: number }[];
   newAlerts: any[];
 };
 
-export async function analyzeCameraFrame(input: {
+// Client-side function using Next.js API route as proxy
+export async function analyzeCameraFrameClient(input: {
   frameDataUri: string;
 }): Promise<AnalyzeCameraFrameOutput> {
   try {
-    const res = await fetch('http://127.0.0.1:8001/analyze', {
+    const res = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ frameDataUri: input.frameDataUri }),
@@ -18,13 +17,13 @@ export async function analyzeCameraFrame(input: {
     });
 
     if (!res.ok) {
-      console.error('Vision backend error', res.status);
+      console.error('API route error', res.status);
       return { crowdCount: 0, peoplePositions: [], newAlerts: [] };
     }
 
     return await res.json();
   } catch (err) {
-    console.error('Vision backend failed', err);
+    console.error('API route failed', err);
     return { crowdCount: 0, peoplePositions: [], newAlerts: [] };
   }
 }

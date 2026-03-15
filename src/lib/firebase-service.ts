@@ -61,11 +61,20 @@ export async function updateCameraStatus(cameraId: string, status: CameraStatus)
     try {
         await updateDoc(doc(db, CAMERAS_COLLECTION, cameraId), { status });
     } catch (error) {
-        console.error("Error updating camera status: ", error);
+        console.error('Error updating camera status:', error);
         throw error;
     }
 }
 
+// Function to update a camera's alert status
+export async function updateCamera(cameraId: string, updates: Partial<Camera>): Promise<void> {
+    try {
+        await updateDoc(doc(db, CAMERAS_COLLECTION, cameraId), updates);
+    } catch (error) {
+        console.error('Error updating camera:', error);
+        throw error;
+    }
+}
 
 // Function to upload a video to Firebase Storage
 export async function uploadVideo(file: File, eventId: string): Promise<string> {

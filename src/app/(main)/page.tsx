@@ -75,7 +75,7 @@ export default function EventSelectionPage() {
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
         <Card className="w-full max-w-2xl">
           <CardHeader>
-            <CardTitle className="text-2xl">Welcome to Drishti AI</CardTitle>
+            <CardTitle className="text-2xl">Welcome to Crowd Management Application</CardTitle>
             <CardDescription>Select an event to monitor or create a new one to begin.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">

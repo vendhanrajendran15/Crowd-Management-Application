@@ -59,7 +59,7 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm sm:h-16 sm:px-6">
+    <header className="sticky top-0 z-50 flex h-14 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm sm:h-16 sm:px-6">
       <Button
         variant="ghost"
         size="icon"
@@ -72,10 +72,8 @@ export default function Header() {
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
             <Bot className="h-7 w-7 text-primary" />
-            <h1 className="font-headline text-xl font-semibold">Drishti AI</h1>
+            <h1 className="font-headline text-xl font-semibold">Crowd Management Application</h1>
         </div>
-        <Separator orientation="vertical" className="h-6" />
-        <div className="text-sm text-muted-foreground">by cipher.ai</div>
       </div>
       
       {currentEvent && (

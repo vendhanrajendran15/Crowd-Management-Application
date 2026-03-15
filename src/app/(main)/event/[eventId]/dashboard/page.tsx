@@ -59,6 +59,14 @@ export default function DashboardPage() {
       return;
     }
 
+    // Update analysis results state
+    if (result) {
+      setAnalysisResults(prev => ({
+        ...prev,
+        [cameraId]: result
+      }));
+    }
+
     if (result && result.newAlerts && result.newAlerts.length > 0) {
       for (const alertInfo of result.newAlerts) {
          const cameraInfo = cameras.find(c => c.id === cameraId) || { 
@@ -69,9 +77,9 @@ export default function DashboardPage() {
             status: 'Online' as const,
             lastSeen: new Date().toISOString(),
             coordinates: { lat: 0, lng: 0 },
-            zone: 'Zone-A',
-            streamImage: ''
-          };
+            zone: '',
+            streamImage: '',
+         };
 
          const incidentData = {
           type: alertInfo.type,
@@ -98,7 +106,7 @@ export default function DashboardPage() {
         });
       }
     }
-  }, [addIncident, addAlert, toast, cameras, eventId]);
+  }, [addIncident, addAlert, toast, cameras, eventId, setAnalysisResults]);
 
   const handleResetAnalysis = async () => {
     setIsResetting(true);

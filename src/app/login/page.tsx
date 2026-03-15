@@ -64,7 +64,7 @@ export default function LoginPage() {
         <CardHeader className="text-center">
             <div className="flex flex-col items-center justify-center space-y-2 mb-4">
                  <Eye className="h-12 w-12 text-primary" />
-                 <h1 className="text-2xl font-bold font-headline">Drishti AI</h1>
+                 <h1 className="text-2xl font-bold font-headline">Crowd Management Application</h1>
                  <p className="text-sm text-muted-foreground">Intelligent Security, Unparalleled Insight.</p>
             </div>
           <CardTitle className="text-2xl">Login</CardTitle>

@@ -11,6 +11,10 @@ interface LocationPickerProps {
 
 const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string;
 
+// Add debug logging
+console.log('Google Maps API Key:', API_KEY ? 'Present' : 'Missing');
+console.log('Google Maps script loading status:', typeof window.google !== 'undefined' ? 'Loaded' : 'Not loaded');
+
 const MapHandler = ({ place, onPositionChange }: { place: google.maps.places.PlaceResult | null, onPositionChange: (pos: {lat: number, lng: number}) => void }) => {
     const map = useMap();
     
@@ -66,19 +70,32 @@ export default function LocationPicker({ onLocationSelect, locationQuery }: Loca
       });
   }, [debouncedQuery, onLocationSelect]);
 
-  const handleMapClick = (e: google.maps.MapMouseEvent) => {
-    if (e.latLng) {
-      const newPos = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+  const handleMapClick = (event: any) => {
+    if (event.latLng) {
+      const newPos = { lat: event.latLng.lat(), lng: event.latLng.lng() };
       setPosition(newPos);
       onLocationSelect(newPos);
     }
   };
 
   if (!API_KEY) {
+    console.error('Google Maps API key is missing from environment variables');
     return (
         <div className="w-full h-64 rounded-lg bg-muted flex items-center justify-center text-center p-4">
             <p className="text-destructive-foreground bg-destructive p-2 rounded-md">
-                Google Maps API key is missing. Please add it to your .env file.
+                Google Maps API key is missing. Please add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to your .env.local file.
+            </p>
+        </div>
+    );
+  }
+
+  // Check if Google Maps script is loaded
+  if (typeof window === 'undefined' || !window.google) {
+    console.error('Google Maps script not loaded');
+    return (
+        <div className="w-full h-64 rounded-lg bg-muted flex items-center justify-center text-center p-4">
+            <p className="text-yellow-700 bg-yellow-100 p-2 rounded-md">
+                Loading Google Maps...
             </p>
         </div>
     );
